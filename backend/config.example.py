@@ -1,4 +1,4 @@
-﻿import os
+import os
 from typing import Optional
 
 class Config:
@@ -11,7 +11,7 @@ class Config:
     FAILED_DIR = os.path.join(DATA_DIR, "failed")
     VECTOR_STORE_PATH = os.path.join(DATA_DIR, "vector_store")
     
-    # ==================== FORMATS SUPPORTÃ‰S ====================
+    # ==================== FORMATS SUPPORTÉS ====================
     SUPPORTED_FORMATS = {
         'pdf': ['.pdf'],
         'images': ['.jpg', '.jpeg', '.png', '.tiff', '.bmp'],
@@ -21,11 +21,11 @@ class Config:
     
     ALL_SUPPORTED_FORMATS = ['.pdf', '.jpg', '.jpeg', '.png', '.tiff', '.bmp', '.txt', '.md', '.docx']
     
-    # ==================== PARAMÃˆTRES OCR ====================
+    # ==================== PARAMÈTRES OCR ====================
     OCR_DPI = 300
     OCR_LANGUAGES = ['fra', 'eng']
     
-    # ==================== MODÃˆLES D'EMBEDDING ====================
+    # ==================== MODÈLES D'EMBEDDING ====================
     EMBEDDING_MODEL = "all-MiniLM-L6-v2"
     EMBEDDING_DIMENSION = 384
     
@@ -36,7 +36,7 @@ class Config:
     # === Configuration OpenRouter ===
     OPENROUTER_API_KEY = "VOTRE_CLE_OPENROUTER_ICI"
     OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
-    OPENROUTER_MODEL = "meta-llama/llama-3.1-8b-instruct"  # ModÃ¨le fiable et rapide
+    OPENROUTER_MODEL = "meta-llama/llama-3.1-8b-instruct"  # Modèle fiable et rapide
     OPENROUTER_MAX_TOKENS = 2000
     OPENROUTER_TEMPERATURE = 0.7
     OPENROUTER_TIMEOUT = 60
@@ -57,7 +57,7 @@ class Config:
     HUGGINGFACE_API_KEY: Optional[str] = os.getenv("HUGGINGFACE_API_KEY")
     HUGGINGFACE_MODEL = "microsoft/DialoGPT-large"
     
-    # ==================== PARAMÃˆTRES RAG ====================
+    # ==================== PARAMÈTRES RAG ====================
     CHUNK_SIZE = 1000
     CHUNK_OVERLAP = 100
     MAX_CHUNKS_PER_DOCUMENT = 50
@@ -65,15 +65,15 @@ class Config:
     MAX_CONTEXT_DOCS = 5
     SEARCH_TOP_K = 10
     
-    # ==================== PARAMÃˆTRES DE TRAITEMENT ====================
+    # ==================== PARAMÈTRES DE TRAITEMENT ====================
     MAX_FILE_SIZE = 50 * 1024 * 1024
     MAX_CONTENT_LENGTH = 2_000_000
     BATCH_SIZE = 10
     PROCESSING_TIMEOUT = 300
     
-    # ==================== MODÃˆLES OPENROUTER DISPONIBLES ====================
+    # ==================== MODÈLES OPENROUTER DISPONIBLES ====================
     OPENROUTER_MODELS = {
-        # Mistral AI (recommandÃ© - fiable et rapide)
+        # Mistral AI (recommandé - fiable et rapide)
         "mistralai/mistral-7b-instruct": "Mistral 7B Instruct",
         "mistralai/mixtral-8x7b-instruct": "Mixtral 8x7B Instruct",
         
@@ -100,12 +100,12 @@ class Config:
     }
     
     def __init__(self):
-        """Initialise la configuration et crÃ©e les dossiers nÃ©cessaires"""
+        """Initialise la configuration et crée les dossiers nécessaires"""
         self._create_directories()
         self._validate_config()
     
     def _create_directories(self):
-        """CrÃ©e tous les dossiers nÃ©cessaires s'ils n'existent pas"""
+        """Crée tous les dossiers nécessaires s'ils n'existent pas"""
         directories = [
             self.DATA_DIR,
             self.INCOMING_DIR,
@@ -117,37 +117,37 @@ class Config:
         
         for directory in directories:
             os.makedirs(directory, exist_ok=True)
-            print(f"âœ… Dossier vÃ©rifiÃ©/crÃ©Ã©: {directory}")
+            print(f"✅ Dossier vérifié/créé: {directory}")
     
     def _validate_config(self):
         """Valide la configuration et affiche des avertissements"""
         warnings = []
         
         if self.LLM_PROVIDER == "openrouter":
-            if not self.OPENROUTER_API_KEY or self.OPENROUTER_API_KEY = "VOTRE_CLE_OPENROUTER_ICI"
-                warnings.append("âš ï¸  OPENROUTER_API_KEY non configurÃ©e")
+            if not self.OPENROUTER_API_KEY or self.OPENROUTER_API_KEY == "votre_cle_api_ici":
+                warnings.append("⚠️  OPENROUTER_API_KEY non configurée")
             else:
-                print(f"âœ… OpenRouter configurÃ© avec le modÃ¨le: {self.OPENROUTER_MODEL}")
+                print(f"✅ OpenRouter configuré avec le modèle: {self.OPENROUTER_MODEL}")
             
             if self.OPENROUTER_MODEL not in self.OPENROUTER_MODELS:
-                warnings.append(f"âš ï¸  ModÃ¨le OpenRouter inconnu: {self.OPENROUTER_MODEL}")
+                warnings.append(f"⚠️  Modèle OpenRouter inconnu: {self.OPENROUTER_MODEL}")
         
         elif self.LLM_PROVIDER == "openai":
             if not self.OPENAI_API_KEY:
-                warnings.append("âš ï¸  OPENAI_API_KEY non configurÃ©e")
+                warnings.append("⚠️  OPENAI_API_KEY non configurée")
         
         elif self.LLM_PROVIDER == "huggingface":
             if not self.HUGGINGFACE_API_KEY:
-                warnings.append("âš ï¸  HUGGINGFACE_API_KEY non configurÃ©e")
+                warnings.append("⚠️  HUGGINGFACE_API_KEY non configurée")
         
         elif self.LLM_PROVIDER == "ollama":
-            print("ðŸ”— Utilisation d'Ollama - Assurez-vous qu'Ollama est en cours d'exÃ©cution")
+            print("🔗 Utilisation d'Ollama - Assurez-vous qu'Ollama est en cours d'exécution")
         
         elif self.LLM_PROVIDER == "none":
-            print("ðŸ”¶ Mode sans LLM - Seules les fonctionnalitÃ©s de base seront disponibles")
+            print("🔶 Mode sans LLM - Seules les fonctionnalités de base seront disponibles")
         
         else:
-            warnings.append(f"âš ï¸  Fournisseur LLM inconnu: {self.LLM_PROVIDER}")
+            warnings.append(f"⚠️  Fournisseur LLM inconnu: {self.LLM_PROVIDER}")
         
         # Afficher les avertissements
         for warning in warnings:
@@ -196,24 +196,24 @@ class Config:
         }
     
     def __str__(self) -> str:
-        """ReprÃ©sentation textuelle de la configuration"""
+        """Représentation textuelle de la configuration"""
         return f"""
-Configuration du SystÃ¨me RAG:
+Configuration du Système RAG:
 -----------------------------
-ðŸ“ Dossiers:
-  - DonnÃ©es: {self.DATA_DIR}
+📁 Dossiers:
+  - Données: {self.DATA_DIR}
   - Vector Store: {self.VECTOR_STORE_PATH}
 
-ðŸ¤– LLM:
+🤖 LLM:
   - Fournisseur: {self.LLM_PROVIDER}
-  - ModÃ¨le: {self.OPENROUTER_MODEL if self.LLM_PROVIDER == 'openrouter' else self.OPENAI_MODEL}
+  - Modèle: {self.OPENROUTER_MODEL if self.LLM_PROVIDER == 'openrouter' else self.OPENAI_MODEL}
 
-ðŸ” RAG:
+🔍 RAG:
   - Taille des chunks: {self.CHUNK_SIZE}
-  - Seuil de similaritÃ©: {self.SIMILARITY_THRESHOLD}
+  - Seuil de similarité: {self.SIMILARITY_THRESHOLD}
   - Documents max en contexte: {self.MAX_CONTEXT_DOCS}
 
-ðŸ“„ Formats supportÃ©s: {', '.join(self.ALL_SUPPORTED_FORMATS)}
+📄 Formats supportés: {', '.join(self.ALL_SUPPORTED_FORMATS)}
         """.strip()
 
 # Instance globale de configuration
@@ -221,5 +221,5 @@ config = Config()
 
 # Test de la configuration
 if __name__ == "__main__":
-    print("ðŸ§ª Test de la configuration...")
+    print("🧪 Test de la configuration...")
     print(config)
