@@ -189,43 +189,8 @@ The dashboard combines backend vector-store statistics with frontend conversatio
 
 ## System architecture
 
-```mermaid
-flowchart LR
-    U[User] --> FE[React + Vite Frontend]
+<img width="11872" height="2223" alt="mermaid-diagram" src="https://github.com/user-attachments/assets/b4238cae-3d4c-4d84-aacd-63b620590a34" />
 
-    FE -->|Upload file| API[Flask REST API]
-    FE -->|Ask question| API
-    FE -->|URL workflow| API
-    FE -->|Stats / files| API
-
-    subgraph Ingestion Pipeline
-        API --> DP[DocumentProcessor]
-        DP --> PD[PDF Type Detection]
-        PD -->|Text / mixed PDF| PYPDF[PyPDF2]
-        PD -->|Scanned PDF| OCR[Tesseract + OpenCV + pdf2image]
-        DP --> TXT[Text Cleaning]
-        PYPDF --> TXT
-        OCR --> TXT
-        TXT --> META[LLM Summary + Keywords]
-        META --> CHUNK[Chunking + Overlap]
-        CHUNK --> EMB[SentenceTransformer Embeddings]
-        EMB --> VS[(FAISS + documents.json)]
-    end
-
-    subgraph Retrieval Pipeline
-        API --> QA[QAEngine]
-        QA --> QEMB[Query Embedding]
-        QEMB --> VS
-        VS --> RET[Top-k Semantic Retrieval]
-        RET --> FILTER[Similarity Threshold]
-        FILTER --> CTX[Grounded Context]
-        CTX --> LLM[LLMIntegration]
-        LLM --> OR[OpenRouter / configured provider]
-        OR --> ANS[Answer + Sources]
-    end
-
-    ANS --> API --> FE
-```
 
 ---
 
