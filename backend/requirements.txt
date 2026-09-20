@@ -1,0 +1,15 @@
+﻿Flask
+flask-cors
+requests
+openai
+numpy
+sentence-transformers
+faiss-cpu
+pytesseract
+pdf2image
+opencv-python
+PyPDF2
+Pillow
+fpdf2
+nltk
+scikit-learn
