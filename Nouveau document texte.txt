@@ -1,0 +1,1105 @@
+import React, { useState, useEffect, useRef } from 'react'
+import axios from 'axios'
+import { 
+  Send, 
+  Upload, 
+  FileText, 
+  Brain, 
+  Search, 
+  Download,
+  Trash2,
+  MessageSquare,
+  User,
+  Bot,
+  Plus,
+  X,
+  Folder,
+  Edit,
+  Save,
+  FolderOpen,
+  Moon,
+  Sun,
+  Globe,
+  Link,
+  BookOpen
+} from 'lucide-react'
+import './App.css'
+
+const API_BASE = 'http://localhost:5000/api'
+
+function App() {
+  const [messages, setMessages] = useState([])
+  const [inputMessage, setInputMessage] = useState('')
+  const [isLoading, setIsLoading] = useState(false)
+  const [uploadedFiles, setUploadedFiles] = useState([])
+  const [processedFiles, setProcessedFiles] = useState([])
+  const [activeTab, setActiveTab] = useState('chat')
+  const [stats, setStats] = useState(null)
+  const [conversations, setConversations] = useState([])
+  const [currentConversation, setCurrentConversation] = useState(null)
+  const [chatKey, setChatKey] = useState(0)
+  const [darkMode, setDarkMode] = useState(false)
+  
+  // États pour les modules
+  const [modules, setModules] = useState([
+    { id: 'module1', name: 'Module 1', files: [], color: '#6366f1' },
+    { id: 'module2', name: 'Module 2', files: [], color: '#8b5cf6' },
+    { id: 'module3', name: 'Module 3', files: [], color: '#10b981' }
+  ])
+  const [editingModule, setEditingModule] = useState(null)
+  const [editedModuleName, setEditedModuleName] = useState('')
+  const [dragOverModule, setDragOverModule] = useState(null)
+  const [draggedFile, setDraggedFile] = useState(null)
+
+  // NOUVEAUX ÉTATS POUR LES URLs
+  const [urlOptions, setUrlOptions] = useState({
+    show: false,
+    url: '',
+    processing: false
+  })
+
+  const messagesEndRef = useRef(null)
+
+  // Charger le thème depuis le localStorage
+  useEffect(() => {
+    const savedDarkMode = localStorage.getItem('darkMode') === 'true'
+    setDarkMode(savedDarkMode)
+    loadConversations()
+    loadProcessedFiles()
+    loadStats()
+  }, [])
+
+  // Debug processedFiles
+  useEffect(() => {
+    console.log('🔄 processedFiles mis à jour:', processedFiles)
+  }, [processedFiles])
+
+  // Appliquer le thème
+  useEffect(() => {
+    if (darkMode) {
+      document.documentElement.classList.add('dark-mode')
+    } else {
+      document.documentElement.classList.remove('dark-mode')
+    }
+    localStorage.setItem('darkMode', darkMode.toString())
+  }, [darkMode])
+
+  // Scroll vers le bas des messages
+  useEffect(() => {
+    scrollToBottom()
+  }, [messages])
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
+  }
+
+  const refreshChat = () => {
+    console.log("🔄 Rafraîchissement du chat...")
+    setChatKey(prev => prev + 1)
+  }
+
+  // NOUVELLE FONCTION : Détection des URLs
+  const isUrl = (text) => {
+    const urlRegex = /^(https?:\/\/)?([\da-z.-]+)\.([a-z.]{2,6})([/\w .-]*)*\/?$/
+    return urlRegex.test(text.trim())
+  }
+
+  // NOUVELLE FONCTION : Traitement d'URL (Option A - Analyse immédiate)
+  const processUrlImmediate = async (url, question = '') => {
+    setUrlOptions(prev => ({ ...prev, processing: true }))
+    
+    const userMessage = {
+      id: Date.now(),
+      type: 'user',
+      content: `🔗 ${url}${question ? `\n\nQuestion: ${question}` : ''}`,
+      timestamp: new Date().toISOString()
+    }
+
+    setMessages(prev => [...prev, userMessage])
+    setInputMessage('')
+    setUrlOptions({ show: false, url: '', processing: false })
+
+    try {
+      const response = await axios.post(`${API_BASE}/process-url`, {
+        url: url,
+        question: question
+      })
+
+      const botMessage = {
+        id: Date.now() + 1,
+        type: 'bot',
+        content: response.data.response,
+        sources: [url],
+        timestamp: new Date().toISOString(),
+        isUrlResponse: true
+      }
+
+      setMessages(prev => [...prev, botMessage])
+      saveConversation([...messages, userMessage, botMessage])
+
+    } catch (error) {
+      const errorMessage = {
+        id: Date.now() + 1,
+        type: 'bot',
+        content: '❌ Erreur lors du traitement de l\'URL: ' + (error.response?.data?.error || error.message),
+        timestamp: new Date().toISOString()
+      }
+      setMessages(prev => [...prev, errorMessage])
+    }
+  }
+
+  // NOUVELLE FONCTION : Ajouter URL à la base (Option B)
+  const addUrlToKnowledge = async (url) => {
+    setUrlOptions(prev => ({ ...prev, processing: true }))
+    
+    const userMessage = {
+      id: Date.now(),
+      type: 'user',
+      content: `💾 Ajout de l'URL à la base: ${url}`,
+      timestamp: new Date().toISOString()
+    }
+
+    setMessages(prev => [...prev, userMessage])
+    setUrlOptions({ show: false, url: '', processing: false })
+
+    try {
+      const response = await axios.post(`${API_BASE}/add-url`, {
+        url: url
+      })
+
+      const botMessage = {
+        id: Date.now() + 1,
+        type: 'bot',
+        content: `✅ URL ajoutée avec succès à la base de connaissances!\n\n**Fichier créé :** ${response.data.filename}\n**Résumé :** ${response.data.extraction_result?.summary || 'Non disponible'}`,
+        timestamp: new Date().toISOString()
+      }
+
+      setMessages(prev => [...prev, botMessage])
+      saveConversation([...messages, userMessage, botMessage])
+
+      // Rafraîchir les fichiers traités
+      loadProcessedFiles()
+      loadStats()
+
+    } catch (error) {
+      const errorMessage = {
+        id: Date.now() + 1,
+        type: 'bot',
+        content: '❌ Erreur lors de l\'ajout de l\'URL: ' + (error.response?.data?.error || error.message),
+        timestamp: new Date().toISOString()
+      }
+      setMessages(prev => [...prev, errorMessage])
+    }
+  }
+
+  // Gestion des modules
+  const startEditingModule = (moduleId, currentName) => {
+    setEditingModule(moduleId)
+    setEditedModuleName(currentName)
+  }
+
+  const saveModuleName = (moduleId) => {
+    setModules(prev => prev.map(module => 
+      module.id === moduleId 
+        ? { ...module, name: editedModuleName }
+        : module
+    ))
+    setEditingModule(null)
+    setEditedModuleName('')
+  }
+
+  const cancelEditingModule = () => {
+    setEditingModule(null)
+    setEditedModuleName('')
+  }
+
+  // Ajouter un nouveau module
+  const addNewModule = () => {
+    const newModule = {
+      id: 'module-' + Date.now(),
+      name: `Module ${modules.length + 1}`,
+      files: [],
+      color: getRandomColor()
+    }
+    setModules(prev => [...prev, newModule])
+  }
+
+  // Supprimer un module
+  const deleteModule = (moduleId) => {
+    if (modules.length > 1) {
+      setModules(prev => prev.filter(module => module.id !== moduleId))
+    }
+  }
+
+  // Supprimer un fichier d'un module
+  const deleteFileFromModule = (moduleId, fileName) => {
+    setModules(prev => prev.map(module => 
+      module.id === moduleId 
+        ? { 
+            ...module, 
+            files: module.files.filter(file => file.name !== fileName)
+          }
+        : module
+    ))
+  }
+
+  // Couleurs aléatoires pour les nouveaux modules
+  const getRandomColor = () => {
+    const colors = [
+      '#6366f1', '#8b5cf6', '#10b981', '#f59e0b', '#ef4444', 
+      '#06b6d4', '#d946ef', '#84cc16', '#f97316', '#64748b'
+    ]
+    return colors[Math.floor(Math.random() * colors.length)]
+  }
+
+  // Drag & drop pour nouveaux fichiers
+  const handleDragOver = (e, moduleId) => {
+    e.preventDefault()
+    setDragOverModule(moduleId)
+  }
+
+  const handleDragLeave = () => {
+    setDragOverModule(null)
+  }
+
+  const handleDrop = (e, moduleId) => {
+    e.preventDefault()
+    setDragOverModule(null)
+    
+    const files = Array.from(e.dataTransfer.files)
+    if (files.length > 0) {
+      handleFilesUpload(files, moduleId)
+    }
+  }
+
+  // Drag & drop pour fichiers traités
+  const handleProcessedFileDragStart = (e, file) => {
+    setDraggedFile(file)
+    e.dataTransfer.setData('text/plain', file.name)
+  }
+
+  const handleProcessedFileDrop = (e, moduleId) => {
+    e.preventDefault()
+    setDragOverModule(null)
+    
+    if (draggedFile) {
+      // Ajouter le fichier traité au module
+      setModules(prev => prev.map(module => 
+        module.id === moduleId 
+          ? { 
+              ...module, 
+              files: [...module.files, { 
+                name: draggedFile.name, 
+                size: draggedFile.size,
+                processed: true,
+                addedAt: new Date().toISOString()
+              }] 
+            }
+          : module
+      ))
+      setDraggedFile(null)
+    }
+  }
+
+  const handleFilesUpload = (files, moduleId) => {
+    const newFiles = files.map(file => ({
+      file,
+      name: file.name,
+      size: (file.size / 1024 / 1024).toFixed(2) + ' MB',
+      status: 'uploading',
+      moduleId: moduleId
+    }))
+
+    setUploadedFiles(prev => [...prev, ...newFiles])
+
+    // Upload chaque fichier
+    newFiles.forEach(fileData => {
+      uploadFile(fileData.file, fileData.name, moduleId)
+    })
+  }
+
+  const uploadFile = async (file, fileName, moduleId) => {
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+
+      const response = await axios.post(`${API_BASE}/upload`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      })
+
+      setUploadedFiles(prev => 
+        prev.map(f => 
+          f.name === fileName 
+            ? { ...f, status: 'success', result: response.data }
+            : f
+        )
+      )
+
+      // Ajouter le fichier au module
+      setModules(prev => prev.map(module => 
+        module.id === moduleId 
+          ? { 
+              ...module, 
+              files: [...module.files, { 
+                name: fileName, 
+                size: (file.size / 1024 / 1024).toFixed(2) + ' MB',
+                uploadedAt: new Date().toISOString()
+              }] 
+            }
+          : module
+      ))
+
+      refreshChat()
+      loadStats()
+      loadProcessedFiles()
+
+    } catch (error) {
+      setUploadedFiles(prev => 
+        prev.map(f => 
+          f.name === fileName 
+            ? { ...f, status: 'error', error: error.response?.data?.error || 'Erreur' }
+            : f
+        )
+      )
+    }
+  }
+
+  // Upload via input file
+  const handleFileUpload = async (e, moduleId) => {
+    const files = Array.from(e.target.files)
+    if (files.length === 0) return
+    handleFilesUpload(files, moduleId)
+  }
+
+  // Charger les conversations sauvegardées
+  const loadConversations = () => {
+    const saved = localStorage.getItem('rag-conversations')
+    if (saved) {
+      const conversationsData = JSON.parse(saved)
+      setConversations(conversationsData)
+      if (conversationsData.length > 0 && !currentConversation) {
+        setCurrentConversation(conversationsData[0].id)
+        setMessages(conversationsData[0].messages)
+      }
+    } else {
+      // Créer une conversation par défaut
+      const defaultConv = {
+        id: 'default',
+        title: 'Nouvelle conversation',
+        messages: [],
+        createdAt: new Date().toISOString()
+      }
+      setConversations([defaultConv])
+      setCurrentConversation('default')
+    }
+  }
+
+  // Charger les fichiers traités
+  const loadProcessedFiles = async () => {
+    try {
+      console.log('🔄 Début du chargement des fichiers...')
+      const response = await axios.get(`${API_BASE}/files`)
+      console.log('✅ Réponse API reçue:', response.data)
+      
+      if (response.data && response.data.files) {
+        console.log('📄 Fichiers à afficher:', response.data.files)
+        setProcessedFiles(response.data.files)
+      } else {
+        console.log('❌ Structure de réponse inattendue')
+        setProcessedFiles([])
+      }
+    } catch (error) {
+      console.error('❌ Erreur API fichiers:', error)
+      setProcessedFiles([])
+    }
+  }
+
+  // Charger les statistiques
+  const loadStats = async () => {
+    try {
+      const response = await axios.get(`${API_BASE}/stats`)
+      setStats(response.data)
+    } catch (error) {
+      console.error('Error loading stats:', error)
+    }
+  }
+
+  // MODIFIÉ : Envoyer un message avec détection d'URL
+  const sendMessage = async (e) => {
+    e.preventDefault()
+    if (!inputMessage.trim() || isLoading) return
+
+    // Vérifier si c'est une URL
+    if (isUrl(inputMessage)) {
+      setUrlOptions({
+        show: true,
+        url: inputMessage,
+        processing: false
+      })
+      return
+    }
+
+    const userMessage = {
+      id: Date.now(),
+      type: 'user',
+      content: inputMessage,
+      timestamp: new Date().toISOString()
+    }
+
+    // Ajouter le message utilisateur
+    const newMessages = [...messages, userMessage]
+    setMessages(newMessages)
+    setInputMessage('')
+    setIsLoading(true)
+
+    try {
+      const response = await axios.post(`${API_BASE}/ask`, { 
+        question: inputMessage 
+      })
+
+      const botMessage = {
+        id: Date.now() + 1,
+        type: 'bot',
+        content: response.data.answer,
+        sources: response.data.sources || [],
+        timestamp: new Date().toISOString()
+      }
+
+      const updatedMessages = [...newMessages, botMessage]
+      setMessages(updatedMessages)
+
+      // Sauvegarder la conversation
+      saveConversation(updatedMessages)
+
+    } catch (error) {
+      const errorMessage = {
+        id: Date.now() + 1,
+        type: 'bot',
+        content: '❌ Erreur: ' + (error.response?.data?.error || error.message),
+        timestamp: new Date().toISOString()
+      }
+      setMessages([...newMessages, errorMessage])
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  // Sauvegarder la conversation
+  const saveConversation = (messages) => {
+    const conversation = conversations.find(c => c.id === currentConversation)
+    if (conversation) {
+      const updatedConversation = {
+        ...conversation,
+        messages: messages,
+        title: messages[0]?.content?.substring(0, 30) + '...' || 'Nouvelle conversation'
+      }
+
+      const updatedConversations = conversations.map(c =>
+        c.id === currentConversation ? updatedConversation : c
+      )
+
+      setConversations(updatedConversations)
+      localStorage.setItem('rag-conversations', JSON.stringify(updatedConversations))
+    }
+  }
+
+  // Nouvelle conversation
+  const newConversation = () => {
+    const newConv = {
+      id: 'conv-' + Date.now(),
+      title: 'Nouvelle conversation',
+      messages: [],
+      createdAt: new Date().toISOString()
+    }
+    setConversations([newConv, ...conversations])
+    setCurrentConversation(newConv.id)
+    setMessages([])
+    setUrlOptions({ show: false, url: '', processing: false })
+  }
+
+  // Changer de conversation
+  const switchConversation = (convId) => {
+    const conversation = conversations.find(c => c.id === convId)
+    if (conversation) {
+      setCurrentConversation(convId)
+      setMessages(conversation.messages)
+      setUrlOptions({ show: false, url: '', processing: false })
+    }
+  }
+
+  // Effacer le contenu de la conversation
+  const clearConversation = () => {
+    setMessages([])
+    saveConversation([])
+    setUrlOptions({ show: false, url: '', processing: false })
+  }
+
+  // Supprimer complètement une conversation
+  const deleteConversation = (convId, e) => {
+    e.stopPropagation() // Empêche le changement de conversation
+    
+    const updatedConversations = conversations.filter(c => c.id !== convId)
+    setConversations(updatedConversations)
+    localStorage.setItem('rag-conversations', JSON.stringify(updatedConversations))
+    
+    // Si on supprime la conversation active
+    if (currentConversation === convId) {
+      if (updatedConversations.length > 0) {
+        setCurrentConversation(updatedConversations[0].id)
+        setMessages(updatedConversations[0].messages)
+      } else {
+        // Créer une nouvelle conversation si plus aucune
+        newConversation()
+      }
+    }
+  }
+
+  // Toggle mode sombre/clair
+  const toggleDarkMode = () => {
+    setDarkMode(!darkMode)
+  }
+
+  return (
+    <div className="app">
+      {/* Header */}
+      <header className="header">
+        <div className="header-content">
+          <Brain size={32} className="logo" />
+          <div className="header-text">
+            <h1>Assistant RAG Intelligent</h1>
+            <p>Posez des questions sur vos documents et URLs</p>
+          </div>
+          <button 
+            onClick={toggleDarkMode}
+            className="theme-toggle"
+            title={darkMode ? 'Mode clair' : 'Mode sombre'}
+          >
+            {darkMode ? <Sun size={20} /> : <Moon size={20} />}
+          </button>
+        </div>
+      </header>
+
+      <div className="container">
+        {/* Sidebar */}
+        <aside className="sidebar">
+          <button className="new-chat-btn" onClick={newConversation}>
+            <Plus size={20} />
+            Nouvelle conversation
+          </button>
+
+          <div className="conversations-list">
+            {conversations.map(conv => (
+              <div
+                key={conv.id}
+                className={`conversation-item ${currentConversation === conv.id ? 'active' : ''}`}
+                onClick={() => switchConversation(conv.id)}
+              >
+                <MessageSquare size={16} />
+                <span className="conv-title">{conv.title}</span>
+                <span className="conv-date">
+                  {new Date(conv.createdAt).toLocaleDateString()}
+                </span>
+                <button 
+                  className="delete-conversation-btn"
+                  onClick={(e) => deleteConversation(conv.id, e)}
+                  title="Supprimer la conversation"
+                >
+                  <X size={14} />
+                </button>
+              </div>
+            ))}
+          </div>
+
+          <nav className="sidebar-nav">
+            <button 
+              className={`nav-item ${activeTab === 'chat' ? 'active' : ''}`}
+              onClick={() => setActiveTab('chat')}
+            >
+              <MessageSquare size={20} />
+              Chat
+            </button>
+            <button 
+              className={`nav-item ${activeTab === 'files' ? 'active' : ''}`}
+              onClick={() => {
+                setActiveTab('files')
+                loadProcessedFiles()
+              }}
+            >
+              <FolderOpen size={20} />
+              Documents
+            </button>
+            <button 
+              className={`nav-item ${activeTab === 'stats' ? 'active' : ''}`}
+              onClick={() => {
+                setActiveTab('stats')
+                loadStats()
+              }}
+            >
+              <Search size={20} />
+              Statistiques
+            </button>
+          </nav>
+        </aside>
+
+        {/* Main Content */}
+        <main className="main-content">
+          {/* Tab Chat */}
+          {activeTab === 'chat' && (
+            <div key={chatKey} className="chat-container">
+              <div className="chat-header">
+                <h2>Conversation</h2>
+                <div className="chat-actions">
+                  <button onClick={clearConversation} className="clear-btn">
+                    <Trash2 size={16} />
+                    Effacer le contenu
+                  </button>
+                </div>
+              </div>
+
+              {/* Messages avec scroll indépendant */}
+              <div className="messages-container">
+                {messages.length === 0 ? (
+                  <div className="empty-state">
+                    <Brain size={48} />
+                    <h3>Commencez une conversation</h3>
+                    <p>Posez une question sur vos documents ou collez une URL pour commencer</p>
+                  </div>
+                ) : (
+                  messages.map(message => (
+                    <div key={message.id} className={`message ${message.type}`}>
+                      <div className="message-avatar">
+                        {message.type === 'user' ? <User size={20} /> : <Bot size={20} />}
+                      </div>
+                      <div className="message-content">
+                        <div className="message-text">
+                          {message.isUrlResponse && (
+                            <div className="url-response-badge">
+                              <Globe size={14} />
+                              Réponse d'URL
+                            </div>
+                          )}
+                          {message.content}
+                        </div>
+                        {message.sources && message.sources.length > 0 && (
+                          <div className="message-sources">
+                            <div className="sources-label">Sources:</div>
+                            <div className="sources-list">
+                              {message.sources.map((source, index) => (
+                                <span key={index} className="source-tag">
+                                  {source.startsWith('http') ? (
+                                    <a href={source} target="_blank" rel="noopener noreferrer" className="source-link">
+                                      <Link size={12} />
+                                      {new URL(source).hostname}
+                                    </a>
+                                  ) : (
+                                    source
+                                  )}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        <div className="message-time">
+                          {new Date(message.timestamp).toLocaleTimeString()}
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                )}
+                
+                {/* Indicateur de chargement pour URL */}
+                {urlOptions.processing && (
+                  <div className="message bot">
+                    <div className="message-avatar">
+                      <Bot size={20} />
+                    </div>
+                    <div className="message-content">
+                      <div className="typing-indicator">
+                        <span></span>
+                        <span></span>
+                        <span></span>
+                      </div>
+                      <div className="url-processing-text">
+                        <Globe size={16} />
+                        Traitement de l'URL en cours...
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {isLoading && !urlOptions.processing && (
+                  <div className="message bot">
+                    <div className="message-avatar">
+                      <Bot size={20} />
+                    </div>
+                    <div className="message-content">
+                      <div className="typing-indicator">
+                        <span></span>
+                        <span></span>
+                        <span></span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                <div ref={messagesEndRef} />
+              </div>
+
+              {/* Modal pour les options URL */}
+              {urlOptions.show && (
+                <div className="url-options-modal-overlay">
+                  <div className="url-options-modal">
+                    <div className="url-modal-header">
+                      <Globe size={24} />
+                      <h3>Détection d'URL</h3>
+                      <button 
+                        onClick={() => setUrlOptions({ show: false, url: '', processing: false })}
+                        className="close-modal-btn"
+                      >
+                        <X size={20} />
+                      </button>
+                    </div>
+                    <div className="url-modal-content">
+                      <p>Nous avons détecté une URL :</p>
+                      <div className="url-preview">
+                        <Link size={16} />
+                        <span>{urlOptions.url}</span>
+                      </div>
+                      <p>Que souhaitez-vous faire ?</p>
+                      
+                      <div className="url-options-buttons">
+                        <button 
+                          onClick={() => processUrlImmediate(urlOptions.url)}
+                          className="url-option-btn primary"
+                          disabled={urlOptions.processing}
+                        >
+                          <Search size={18} />
+                          Analyser maintenant
+                          <span>Réponse immédiate dans le chat</span>
+                        </button>
+                        
+                        <button 
+                          onClick={() => addUrlToKnowledge(urlOptions.url)}
+                          className="url-option-btn secondary"
+                          disabled={urlOptions.processing}
+                        >
+                          <BookOpen size={18} />
+                          Ajouter à la base
+                          <span>Stockage pour questions futures</span>
+                        </button>
+
+                        <button 
+                          onClick={() => {
+                            const question = prompt('Quelle question souhaitez-vous poser sur cette URL ?')
+                            if (question) {
+                              processUrlImmediate(urlOptions.url, question)
+                            }
+                          }}
+                          className="url-option-btn tertiary"
+                          disabled={urlOptions.processing}
+                        >
+                          <MessageSquare size={18} />
+                          Poser une question spécifique
+                          <span>Analyse ciblée</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Input FIXE qui ne grandit pas */}
+              <form onSubmit={sendMessage} className="message-input-form">
+                <div className="input-group">
+                  <input
+                    type="text"
+                    value={inputMessage}
+                    onChange={(e) => setInputMessage(e.target.value)}
+                    placeholder="Posez votre question ou collez une URL..."
+                    disabled={isLoading || urlOptions.processing}
+                  />
+                  <button 
+                    type="submit" 
+                    disabled={isLoading || !inputMessage.trim() || urlOptions.processing}
+                  >
+                    {isLoading || urlOptions.processing ? '...' : <Send size={20} />}
+                  </button>
+                </div>
+                <div className="input-hint">
+                  💡 Collez une URL pour l'analyser ou l'ajouter à votre base de connaissances
+                </div>
+              </form>
+            </div>
+          )}
+
+          {/* Tab Files - RESTE INCHANGÉ */}
+          {activeTab === 'files' && (
+            <div className="files-container">
+              <div className="files-header">
+                <h2>Gestion des Documents par Module</h2>
+                <p>Organisez vos documents dans des modules spécifiques</p>
+                <button onClick={addNewModule} className="add-module-btn">
+                  <Plus size={20} />
+                  Ajouter un Module
+                </button>
+              </div>
+
+              <div className="files-content">
+                {/* Modules Section */}
+                <div className="modules-section">
+                  <h3>Modules de Documents ({modules.length})</h3>
+                  <div className="modules-grid">
+                    {modules.map(module => (
+                      <div 
+                        key={module.id}
+                        className={`module-card ${dragOverModule === module.id ? 'drag-over' : ''}`}
+                        onDragOver={(e) => handleDragOver(e, module.id)}
+                        onDragLeave={handleDragLeave}
+                        onDrop={(e) => handleProcessedFileDrop(e, module.id)}
+                        style={{ '--module-color': module.color }}
+                      >
+                        <div className="module-header">
+                          {editingModule === module.id ? (
+                            <div className="module-edit">
+                              <input
+                                type="text"
+                                value={editedModuleName}
+                                onChange={(e) => setEditedModuleName(e.target.value)}
+                                className="module-name-input"
+                                autoFocus
+                              />
+                              <div className="module-edit-actions">
+                                <button 
+                                  onClick={() => saveModuleName(module.id)}
+                                  className="save-btn"
+                                >
+                                  <Save size={14} />
+                                </button>
+                                <button 
+                                  onClick={cancelEditingModule}
+                                  className="cancel-btn"
+                                >
+                                  <X size={14} />
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="module-title">
+                              <Folder size={20} />
+                              <span className="module-name">{module.name}</span>
+                              <div className="module-actions">
+                                <button 
+                                  onClick={() => startEditingModule(module.id, module.name)}
+                                  className="edit-btn"
+                                >
+                                  <Edit size={14} />
+                                </button>
+                                {modules.length > 1 && (
+                                  <button 
+                                    onClick={() => deleteModule(module.id)}
+                                    className="delete-btn"
+                                  >
+                                    <X size={14} />
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="module-files">
+                          {module.files.length > 0 ? (
+                            module.files.map((file, index) => (
+                              <div key={index} className="module-file-item">
+                                <FileText size={16} />
+                                <div className="file-info">
+                                  <div className="file-name">{file.name}</div>
+                                  <div className="file-size">{file.size}</div>
+                                  {file.processed && <span className="file-badge">Traité</span>}
+                                </div>
+                                <button 
+                                  className="delete-file-btn"
+                                  onClick={() => deleteFileFromModule(module.id, file.name)}
+                                  title="Supprimer le fichier"
+                                >
+                                  <X size={14} />
+                                </button>
+                              </div>
+                            ))
+                          ) : (
+                            <div className="empty-module">
+                              <p>Glissez des fichiers ici ou</p>
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="module-upload">
+                          <input
+                            type="file"
+                            id={`file-upload-${module.id}`}
+                            multiple
+                            onChange={(e) => handleFileUpload(e, module.id)}
+                            accept=".pdf,.txt,.jpg,.jpeg,.png,.docx,.md"
+                            style={{ display: 'none' }}
+                          />
+                          <label htmlFor={`file-upload-${module.id}`} className="module-upload-btn">
+                            <Upload size={16} />
+                            Ajouter des fichiers
+                          </label>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Uploaded Files Status */}
+                {uploadedFiles.length > 0 && (
+                  <div className="upload-status-section">
+                    <h3>Fichiers en cours de traitement</h3>
+                    <div className="files-list">
+                      {uploadedFiles.map((file, index) => (
+                        <div key={index} className={`file-item ${file.status}`}>
+                          <FileText size={20} />
+                          <div className="file-info">
+                            <div className="file-name">{file.name}</div>
+                            <div className="file-size">{file.size}</div>
+                            <div className="file-module">Module: {modules.find(m => m.id === file.moduleId)?.name}</div>
+                          </div>
+                          <div className={`file-status ${file.status}`}>
+                            {file.status === 'uploading' && '⏳ Upload...'}
+                            {file.status === 'success' && '✅ Traité'}
+                            {file.status === 'error' && '❌ Erreur'}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Processed Files */}
+                <div className="processed-section">
+                  <h3>Tous les Documents Traités ({processedFiles.length})</h3>
+                  <p className="drag-hint">💡 Glissez-déposez les fichiers dans les modules pour les organiser</p>
+                  {processedFiles.length > 0 ? (
+                    <div className="processed-files-grid">
+                      {processedFiles.map((file, index) => (
+                        <div 
+                          key={index} 
+                          className="processed-file-card"
+                          draggable
+                          onDragStart={(e) => handleProcessedFileDragStart(e, file)}
+                        >
+                          <FileText size={24} />
+                          <div className="file-details">
+                            <div className="file-name">{file.name}</div>
+                            <div className="file-meta">
+                              <span className="file-size">{file.size}</span>
+                              <span className="file-status processed">✅ Traité</span>
+                            </div>
+                          </div>
+                          <div className="drag-handle" title="Glisser pour ajouter à un module">
+                            ⋮⋮
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="empty-files">
+                      <FileText size={48} />
+                      <p>Aucun document traité pour le moment</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Tab Stats - RESTE INCHANGÉ */}
+          {activeTab === 'stats' && (
+            <div className="stats-container">
+              <h2>Statistiques du Système</h2>
+              
+              {stats ? (
+                <div className="stats-grid">
+                  <div className="stat-card">
+                    <div className="stat-icon">
+                      <FileText size={24} />
+                    </div>
+                    <div className="stat-content">
+                      <div className="stat-number">
+                        {stats.vector_store?.total_documents || 0}
+                      </div>
+                      <div className="stat-label">Documents indexés</div>
+                    </div>
+                  </div>
+
+                  <div className="stat-card">
+                    <div className="stat-icon">
+                      <Brain size={24} />
+                    </div>
+                    <div className="stat-content">
+                      <div className="stat-number">
+                        {stats.vector_store?.unique_files || 0}
+                      </div>
+                      <div className="stat-label">Fichiers uniques</div>
+                    </div>
+                  </div>
+
+                  <div className="stat-card">
+                    <div className="stat-icon">
+                      <Search size={24} />
+                    </div>
+                    <div className="stat-content">
+                      <div className="stat-number">
+                        {stats.vector_store?.total_embeddings || 0}
+                      </div>
+                      <div className="stat-label">Embeddings</div>
+                    </div>
+                  </div>
+
+                  <div className="stat-card">
+                    <div className="stat-icon">
+                      <Download size={24} />
+                    </div>
+                    <div className="stat-content">
+                      <div className="stat-number">
+                        {stats.llm_provider || 'OpenRouter'}
+                      </div>
+                      <div className="stat-label">Modèle LLM</div>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="loading-stats">Chargement des statistiques...</div>
+              )}
+
+              {/* Conversation Stats */}
+              <div className="conversation-stats">
+                <h3>Historique des conversations</h3>
+                <div className="conv-stats-grid">
+                  <div className="conv-stat">
+                    <span className="conv-stat-number">{conversations.length}</span>
+                    <span className="conv-stat-label">Conversations</span>
+                  </div>
+                  <div className="conv-stat">
+                    <span className="conv-stat-number">
+                      {conversations.reduce((total, conv) => total + conv.messages.length, 0)}
+                    </span>
+                    <span className="conv-stat-label">Messages totaux</span>
+                  </div>
+                  <div className="conv-stat">
+                    <span className="conv-stat-number">
+                      {conversations.filter(conv => conv.messages.length > 0).length}
+                    </span>
+                    <span className="conv-stat-label">Conversations actives</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </main>
+      </div>
+    </div>
+  )
+}
+
+export default App
